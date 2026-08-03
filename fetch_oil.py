@@ -16,7 +16,7 @@ NAME_TO_FUEL_TYPE = {
     "Gasoline 95": "gasoline_95",
     "Premium Diesel": "premium_diesel",
     "Super Power GSH95": "superpower_gasohol_95",
-    "NGV":"NGV"
+    "ngv":"ngv"
 }
 
 # ===== แปลงวันที่เป็นภาษาไทย พ.ศ. (ให้ตรงกับข้อมูลเก่า) =====
