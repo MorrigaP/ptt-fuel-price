@@ -149,8 +149,8 @@ if ngv_price:
         "capture_date": capture_date,
         "price_date_th": price_date_th,
         "company": "PTT",
-        "fuel_type": NAME_TO_FUEL_TYPE["NGV"],
-        "fuel_name_th": "เอ็นจีวี",
+        "fuel_type": NAME_TO_FUEL_TYPE["ngv"],
+        "fuel_name_th": "แก๊ส NGV",
         "price": ngv_price,   # หมายเหตุ: NGV เป็นบาท/กก. ส่วนที่เหลือเป็นบาท/ลิตร
     })
 else:
