@@ -2,7 +2,6 @@ import requests
 from bs4 import BeautifulSoup
 import csv
 import os
-import re
 from datetime import datetime, timezone, timedelta
 
 URL = "https://oilprice.ryangl.com/en/"
@@ -35,39 +34,49 @@ def to_thai_date(dt):
     return f"{day} {month_th} {year_be}"
 
 
-# ===== ดึงราคา NGV จากหน้า ปตท. =====
+# ===== ดึงราคา NGV จากหน้า ปตท. ด้วย headless browser =====
 def fetch_ngv():
     """
     คืนราคา NGV เป็น string เช่น '20.00' หรือ None ถ้าดึงไม่ได้
-    หน้า pttplc.com เป็น Next.js: div.popupStockPrice ถูก JS สร้างทีหลัง
-    แต่ข้อมูลถูกฝังมากับ HTML อยู่แล้วใน payload ที่ escape ไว้ จึง regex เอาได้
+
+    ต้องใช้ browser จริงเพราะ:
+      1) หน้า pttplc.com เป็น Next.js — div.popupStockPrice ถูก JS สร้างทีหลัง
+      2) เว็บมี bot protection ที่ต้องรัน JS ผ่านก่อนถึงจะเห็นเนื้อหาจริง
     """
-    resp = requests.get(NGV_URL, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
-    resp.raise_for_status()
+    from playwright.sync_api import sync_playwright
 
-    # 1) ลอง DOM ตรง ๆ ก่อน (เผื่อวันหนึ่งเขาเปลี่ยนเป็น server-render)
-    #    ต้องจับคู่ด้วย symbol เพราะกล่องแรกคือราคาหุ้น PTT ไม่ใช่ NGV
-    soup = BeautifulSoup(resp.text, "html.parser")
-    for box in soup.select(".popupStockBody, .popupStockContainer"):
-        sym = box.select_one(".popupStockSymbol")
-        price = box.select_one(".popupStockPrice")
-        if sym and price and sym.get_text(strip=True).upper() == "NGV":
-            return price.get_text(strip=True)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=["--disable-blink-features=AutomationControlled"])
+        try:
+            context = browser.new_context(
+                user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                            "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"),
+                viewport={"width": 1440, "height": 900},
+                locale="th-TH",
+                timezone_id="Asia/Bangkok",
+            )
+            page = context.new_page()
+            page.goto(NGV_URL, wait_until="domcontentloaded", timeout=60000)
 
-    # 2) หาใน payload ดิบที่ฝังมากับ HTML (คลาย \" ก่อนถึงจะ match ได้)
-    text = resp.text.replace('\\"', '"')
-    patterns = [
-        r'"symbol"\s*:\s*"NGV"[^{}]{0,300}?"price"\s*:\s*"?([\d,]+\.\d{1,2})',
-        r'"NGV"[^{}\[\]]{0,200}?([\d,]+\.\d{2})',
-        r'NGV.{0,150}?([\d,]+\.\d{2})',
-    ]
-    for pattern in patterns:
-        for m in re.finditer(pattern, text, flags=re.DOTALL):
-            value = m.group(1).replace(",", "")
-            if 5.0 <= float(value) <= 100.0:   # กันหยิบเลขมั่ว เช่น ราคาหุ้น 38.50
-                return f"{float(value):.2f}"
+            # รอให้ราคาโผล่ (เผื่อต้องผ่านหน้า challenge ก่อน จึงให้เวลา 45 วิ)
+            page.wait_for_selector(".popupStockPrice", timeout=45000)
 
-    return None
+            # จับคู่ด้วย symbol เท่านั้น — กล่องแรกคือราคาหุ้น PTT (38.50) ไม่ใช่ NGV
+            for box in page.query_selector_all(".popupStockBody, .popupStockContainer"):
+                sym = box.query_selector(".popupStockSymbol")
+                price = box.query_selector(".popupStockPrice")
+                if sym and price and sym.inner_text().strip().upper() == "NGV":
+                    value = price.inner_text().strip().replace(",", "")
+                    if 5.0 <= float(value) <= 100.0:   # กันค่าเพี้ยน
+                        return f"{float(value):.2f}"
+
+            # หาไม่เจอ — พิมพ์ข้อมูลช่วย debug ลง log
+            print(f"[NGV DEBUG] title={page.title()!r}")
+            print(f"[NGV DEBUG] symbols={[e.inner_text().strip() for e in page.query_selector_all('.popupStockSymbol')]}")
+            print(f"[NGV DEBUG] prices={[e.inner_text().strip() for e in page.query_selector_all('.popupStockPrice')]}")
+            return None
+        finally:
+            browser.close()
 
 
 resp = requests.get(URL, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
@@ -127,13 +136,13 @@ for tr in table.find_all("tr")[1:]:
 if len(rows) < 5:
     raise ValueError(f"ERROR: ได้แค่ {len(rows)} แถว - หยุดไม่เขียน CSV")
 
-# ===== เพิ่มแถว NGV (ต่อท้าย หลังเช็คจำนวนแถวน้ำมันแล้ว) =====
+# ===== เพิ่มแถว NGV (หลังเช็คจำนวนแถวน้ำมันแล้ว) =====
 # ครอบ try ไว้ เพราะ NGV มาคนละเว็บ ถ้ามันล่มไม่ควรทำให้ราคาน้ำมันหายไปทั้งวัน
 try:
     ngv_price = fetch_ngv()
 except Exception as e:
     ngv_price = None
-    warnings.append(f"⚠️ NGV fetch error: {e}")
+    warnings.append(f"⚠️ NGV fetch error: {type(e).__name__}: {e}")
 
 if ngv_price:
     rows.append({
