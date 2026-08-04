@@ -26,7 +26,7 @@ jobs:
           playwright install --with-deps chromium   # ← เพิ่มบรรทัดนี้
 
       - name: Run fetch script
-        run: python fetch_oil.py
+        run: python fetch_fuel.py
 
       - name: Commit data
         run: |
