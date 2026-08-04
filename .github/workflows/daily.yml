@@ -1,4 +1,4 @@
-name: Daily Oil Price Fetch
+name: Daily fuel Price Fetch
 
 on:
   schedule:
