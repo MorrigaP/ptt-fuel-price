@@ -34,6 +34,22 @@ def to_thai_date(dt):
     return f"{day} {month_th} {year_be}"
 
 
+def read_last_prices(path):
+    """คืน dict {fuel_type: price} จากแถวล่าสุดของแต่ละชนิดใน CSV เดิม"""
+    last = {}
+    if not os.path.exists(path):
+        return last
+    try:
+        with open(path, newline="", encoding="utf-8-sig") as f:
+            for r in csv.DictReader(f):
+                try:
+                    last[r["fuel_type"]] = float(r["price"])
+                except (ValueError, TypeError, KeyError):
+                    continue
+    except Exception as e:
+        print(f"⚠️ อ่าน CSV เดิมไม่ได้: {type(e).__name__}: {e}")
+    return last
+
 # ===== ดึงราคา NGV จากหน้า ปตท. ด้วย headless browser =====
 def fetch_ngv():
     """
@@ -163,7 +179,8 @@ if warnings:
         print(w)
     print("=" * 50)
 
-csv_path = "oil_prices.csv"
+csv_path = "fuel_prices.csv"
+last_prices = read_last_prices(csv_path)   # ← ต้องอ่านก่อน append
 file_exists = os.path.exists(csv_path)
 
 fieldnames = ["capture_date", "price_date_th", "company", "fuel_type", "fuel_name_th", "price"]
@@ -177,3 +194,22 @@ with open(csv_path, "a", newline="", encoding="utf-8-sig") as f:
 print(f"Wrote {len(rows)} rows for {capture_date} ({price_date_th})")
 for r in rows:
     print(f"  {r['fuel_type']}: {r['fuel_name_th']} = {r['price']}")
+
+# ===== สร้าง commit message พร้อมส่วนต่างราคา =====
+msg = [f"Update fuel prices {price_date_th}", ""]
+for r in rows:
+    cur = float(r["price"])
+    prev = last_prices.get(r["fuel_type"])
+    if prev is None:
+        delta = "(ใหม่)"
+    elif abs(cur - prev) < 0.005:
+        delta = "(เท่าเดิม)"
+    else:
+        delta = f"({cur - prev:+.2f})"
+    msg.append(f"{r['fuel_name_th'] or r['fuel_type']}: {cur:.2f} {delta}")
+
+if warnings:
+    msg += [""] + warnings
+
+with open("commit_msg.txt", "w", encoding="utf-8") as f:
+    f.write("\n".join(msg) + "\n")
