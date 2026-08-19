@@ -2,36 +2,39 @@ name: Daily fuel Price Fetch
 
 on:
   schedule:
-    - cron: "0 00 * * *"
-  workflow_dispatch:   # test
+    - cron: "0 0 * * *"        # 07:00 เวลาไทย
+  workflow_dispatch:
 
 permissions:
-  contents: write      # ให้ commit กลับ repo ได้
+  contents: write
 
 jobs:
   fetch:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6          # ← เดิม v4 (แก้ warning Node 20)
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v6      # ← เดิม v5 (แก้ warning Node 20)
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Install dependencies
+        timeout-minutes: 5
         run: |
           pip install requests beautifulsoup4 playwright
-          playwright install --with-deps chromium   # ← เพิ่มบรรทัดนี้
+          playwright install chromium
 
       - name: Run fetch script
+        timeout-minutes: 5
         run: python fetch_fuel.py
 
       - name: Commit data
-     run: |
-    git config user.name "github-actions[bot]"
-    git config user.email "github-actions[bot]@users.noreply.github.com"
-    git add fuel_prices.csv
-    git diff --staged --quiet || git commit -m "Update fuel prices $(date +'%Y-%m-%d')"
-    git push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fuel_prices.csv
+          git diff --staged --quiet || git commit -m "Update fuel prices $(date +'%Y-%m-%d')"
+          git push
