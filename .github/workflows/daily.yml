@@ -28,9 +28,35 @@ jobs:
           playwright install chromium
 
       - name: Run fetch script
+        id: fetch
         timeout-minutes: 5
         run: python fetch_fuel.py
-        
+
+      - name: Commit data
+        id: commit
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fuel_prices.csv
+          git diff --staged --quiet || git commit -F commit_msg.txt
+          git pull --rebase origin main
+          git push
+
+      - name: Prepare email body
+        if: always()
+        run: |
+          if [ ! -f commit_msg.txt ]; then
+            echo "ไม่มีข้อมูลราคา (fetch script ไม่สำเร็จ)" > commit_msg.txt
+          fi
+          {
+            echo ""
+            echo "---"
+            echo "fetch : ${{ steps.fetch.outcome }}"
+            echo "commit: ${{ steps.commit.outcome }}"
+            echo "log   : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> commit_msg.txt
+
       - name: Send email
         if: always()
         uses: dawidd6/action-send-mail@v4
@@ -42,14 +68,9 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           from: Fuel Price Bot
           to: morriga.p@gmail.com , patiphon.boonpaisanseree@nykgroup.com , morriga-peace@hotmail.com
-          subject: "ราคาน้ำมัน PTT ${{ job.status }}"
+          subject: "ราคาน้ำมัน PTT | fetch: ${{ steps.fetch.outcome }} | commit: ${{ steps.commit.outcome }}"
           body: file://commit_msg.txt
-          
-      - name: Commit data
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add fuel_prices.csv
-          git diff --staged --quiet || git commit -F commit_msg.txt
-          git pull --rebase origin main
-          git push
+
+      - name: Fail job if commit failed
+        if: steps.commit.outcome == 'failure'
+        run: exit 1
