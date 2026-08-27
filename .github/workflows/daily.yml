@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "0 0 * * *"        # 07:00 เวลาไทย
   workflow_dispatch:
+    inputs:
+      simulate:
+        description: "จำลองความล้มเหลว (ใช้ทดสอบเมลเท่านั้น)"
+        type: choice
+        default: none
+        options:
+          - none
+          - fetch_fail
+          - commit_fail
 
 permissions:
   contents: write
@@ -30,12 +39,21 @@ jobs:
       - name: Run fetch script
         id: fetch
         timeout-minutes: 5
-        run: python fetch_fuel.py
+        run: |
+          if [ "${{ inputs.simulate }}" = "fetch_fail" ]; then
+            echo "SIMULATED: fetch script failure"
+            exit 1
+          fi
+          python fetch_fuel.py
 
       - name: Commit data
         id: commit
         continue-on-error: true
         run: |
+          if [ "${{ inputs.simulate }}" = "commit_fail" ]; then
+            echo "SIMULATED: commit/push failure"
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add fuel_prices.csv
