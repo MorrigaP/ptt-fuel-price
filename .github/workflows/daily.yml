@@ -85,7 +85,7 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           from: Fuel Price Bot
-          to: morriga.p@gmail.com , patiphon.boonpaisanseree@nykgroup.com , morriga-peace@hotmail.com
+          to: patiphon.boonpaisanseree@nykgroup.com , benyarath.rujraweehiran@nykgroup.com , sirinporn.suttiprapanurak@nykgroup.com , morriga.p@gmail.com
           subject: "ราคาน้ำมัน PTT | fetch: ${{ steps.fetch.outcome }} | commit: ${{ steps.commit.outcome }}"
           body: file://commit_msg.txt
 
