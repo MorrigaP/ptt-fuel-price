@@ -41,7 +41,7 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           from: Fuel Price Bot
-          to: morriga.p@gmail.com , benyarath.rujraweehiran@nykgroup.com , sirinporn.suttiprapanurak@nykgroup.com , morriga-peace@hotmail.com
+          to: morriga.p@gmail.com , patiphon.boonpaisanseree@nykgroup.com , morriga-peace@hotmail.com
           subject: "ราคาน้ำมัน PTT ${{ job.status }}"
           body: file://commit_msg.txt
           
@@ -51,4 +51,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add fuel_prices.csv
           git diff --staged --quiet || git commit -F commit_msg.txt
+          git pull --rebase origin main
           git push
