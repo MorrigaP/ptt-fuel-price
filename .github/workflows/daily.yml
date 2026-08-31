@@ -2,7 +2,7 @@ name: Daily fuel Price Fetch
 
 on:
   schedule:
-    - cron: "0 0 * * *"        # 07:00 เวลาไทย
+    - cron: "0 0 * * *"     
   workflow_dispatch:
     inputs:
       simulate:
