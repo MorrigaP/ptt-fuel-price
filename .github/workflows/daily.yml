@@ -1,5 +1,4 @@
 name: Daily fuel Price Fetch
-
 on:
   schedule:
     - cron: "0 0 * * *"     
@@ -11,12 +10,11 @@ on:
         default: none
         options:
           - none
+          - api_fail
           - fetch_fail
           - commit_fail
-
 permissions:
   contents: write
-
 jobs:
   fetch:
     runs-on: ubuntu-latest
@@ -24,28 +22,27 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v6
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-
       - name: Install dependencies
         timeout-minutes: 5
         run: |
           pip install requests beautifulsoup4 playwright
           playwright install chromium
-
       - name: Run fetch script
         id: fetch
         timeout-minutes: 5
+        env:
+          # api_fail = ข้าม PTT OR API ไปใช้ตัวสำรอง (scrape) เพื่อทดสอบ fallback
+          SIMULATE_API_FAIL: ${{ inputs.simulate == 'api_fail' && '1' || '0' }}
         run: |
           if [ "${{ inputs.simulate }}" = "fetch_fail" ]; then
             echo "SIMULATED: fetch script failure"
             exit 1
           fi
           python fetch_fuel.py
-
       - name: Commit data
         id: commit
         continue-on-error: true
@@ -60,7 +57,6 @@ jobs:
           git diff --staged --quiet || git commit -F commit_msg.txt
           git pull --rebase origin main
           git push
-
       - name: Prepare email body
         if: always()
         run: |
@@ -74,7 +70,6 @@ jobs:
             echo "commit: ${{ steps.commit.outcome }}"
             echo "log   : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } >> commit_msg.txt
-
       - name: Send email
         if: always()
         uses: dawidd6/action-send-mail@v4
@@ -88,7 +83,6 @@ jobs:
           to: patiphon.boonpaisanseree@nykgroup.com , benyarath.rujraweehiran@nykgroup.com , sirinporn.suttiprapanurak@nykgroup.com , morriga.p@gmail.com
           subject: "ราคาน้ำมัน PTT | fetch: ${{ steps.fetch.outcome }} | commit: ${{ steps.commit.outcome }}"
           body: file://commit_msg.txt
-
       - name: Fail job if commit failed
         if: steps.commit.outcome == 'failure'
         run: exit 1
