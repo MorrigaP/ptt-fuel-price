@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import csv
 import os
 import re
+import sys
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
@@ -378,6 +379,7 @@ source = None
 
 # 1) ลอง API ของ PTT OR ก่อน
 if os.environ.get("SIMULATE_API_FAIL") == "1":
+    print("⚠️ SIMULATED: PTT OR API failure")
     warnings.append("⚠️ SIMULATED: PTT OR API failure")
 else:
     try:
@@ -388,18 +390,43 @@ else:
         if len(api_rows) >= MIN_FUEL_ROWS:
             rows = api_rows
             source = "PTT OR API (orapiweb.pttor.com)"
+            print(f"✅ PTT OR API: ได้ {len(api_rows)} แถว")
         else:
-            warnings.append(
-                f"⚠️ PTT OR API ใช้ได้แค่ {len(api_rows)} แถว (ต้องการ {MIN_FUEL_ROWS}) - ไปใช้ตัวสำรอง"
-            )
+            msg = f"⚠️ PTT OR API ใช้ได้แค่ {len(api_rows)} แถว (ต้องการ {MIN_FUEL_ROWS}) - ไปใช้ตัวสำรอง"
+            print(msg)
+            warnings.append(msg)
     except Exception as e:
-        warnings.append(f"⚠️ PTT OR API error: {type(e).__name__}: {e}")
+        msg = f"⚠️ PTT OR API error: {type(e).__name__}: {e}"
+        print(msg)
+        warnings.append(msg)
 
 # 2) ถ้า API ไม่ได้ผล ค่อยไป scrape เว็บเดิม
 if not rows:
-    rows, scrape_warnings = fetch_from_ryangl(capture_date, price_date_th)
-    warnings += scrape_warnings
-    source = "oilprice.ryangl.com (fallback)"
+    try:
+        rows, scrape_warnings = fetch_from_ryangl(capture_date, price_date_th)
+        warnings += scrape_warnings
+        source = "oilprice.ryangl.com (fallback)"
+        print(f"✅ oilprice.ryangl.com (fallback): ได้ {len(rows)} แถว")
+    except Exception as e:
+        msg = f"⚠️ oilprice.ryangl.com (fallback) error: {type(e).__name__}: {e}"
+        print(msg)
+        warnings.append(msg)
+
+# ทั้งสองแหล่งล้มเหลว - หยุดก่อนเขียน CSV แต่เขียน commit_msg.txt ให้มีรายละเอียด
+# ครบ เพื่อให้อีเมลแจ้งเตือนบอกได้ว่าล้มเพราะอะไร แทนที่จะเป็นข้อความ generic
+if not rows:
+    print("=" * 50)
+    print("ERROR: ทั้ง PTT OR API และตัวสำรองล้มเหลว - ไม่มีข้อมูลให้เขียน")
+    print("=" * 50)
+    error_msg = [
+        f"ดึงราคาน้ำมันไม่สำเร็จ ({capture_date})",
+        "",
+        "ทั้งแหล่งหลัก (PTT OR API) และตัวสำรอง (oilprice.ryangl.com) ล้มเหลว:",
+        "",
+    ] + warnings
+    with open("commit_msg.txt", "w", encoding="utf-8") as f:
+        f.write("\n".join(error_msg) + "\n")
+    sys.exit(1)
 
 print(f"SOURCE: {source}")
 
