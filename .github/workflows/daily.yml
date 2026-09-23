@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       simulate:
-        description: "จำลองความล้มเหลว (ใช้ทดสอบเมลเท่านั้น)"
+        description: "Fail test"
         type: choice
         default: none
         options:
@@ -80,7 +80,7 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           from: Fuel Price Bot
-          to: morriga.p@gmail.com
+          to: ${{ secrets.MAIL_TO }}
           subject: "ราคาน้ำมัน PTT | fetch: ${{ steps.fetch.outcome }} | commit: ${{ steps.commit.outcome }}"
           body: file://commit_msg.txt
       - name: Fail job if commit failed
